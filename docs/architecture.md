@@ -10,6 +10,10 @@ Read requests retry transient network failures and throttling, honoring numeric 
 
 The raw manifest binds each artifact's dataset, tenant, query, record count, earliest and latest readable timestamps, acquisition time and collector version. A zero-based index selects the record in the source's array or Graph value array. A normalization failure records that pointer in telemetry gaps. Duplicate vendor IDs have a deterministic event ID, with additional evidence references on the normalized event. Trace IDs also include the recipient because one message can reach several mailboxes.
 
+## Saved-case comparison
+
+Saved-case comparison is a separate read-only path in `comparison.py`. It verifies raw manifests without invoking transaction recovery or report rebuilding, then indexes canonical raw record content before event-ID deduplication. This retains conflicting native-ID variants that ordinary replay groups into one event. It compares the full preserved evidence inventory, includes explicit window/query/coverage context, and writes new JSON or inert HTML reports outside both source cases. See [comparison semantics and limits](comparison.md).
+
 ## Time and scope
 
 The analysis interval includes the start and excludes the end. Microsoft APIs may include the upper endpoint of a page or chunk. Replay deduplicates and applies the half-open interval. Times are stored in UTC with microsecond precision. The normalized event keeps the original timestamp string at its source precision. Microsoft documents Exchange CreationTime as UTC. Other timezone-free timestamps become visible parsing gaps. [Exchange audit schema](https://learn.microsoft.com/en-us/office/office-365-management-api/office-365-management-activity-api-schema)

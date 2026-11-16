@@ -27,6 +27,11 @@ def parser():
         new.add_argument("--" + flag, required=True)
     new.add_argument("--config", type=Path, help="tenant profile JSON")
     cmd.add_parser("demo", help="investigate the bundled synthetic case")
+    comparison = cmd.add_parser("compare", help="compare two saved case directories without changing them")
+    comparison.add_argument("before", type=Path, help="earlier case directory containing case.json")
+    comparison.add_argument("after", type=Path, help="later case directory containing case.json")
+    comparison.add_argument("--format", choices=("json", "html"), default="json")
+    comparison.add_argument("--output", type=Path, help="new report file outside both input cases; otherwise stdout")
     for name in ("collect", "investigate", "analyze", "report", "timeline", "verify", "evidence"):
         sub = cmd.add_parser(name)
         if name == "timeline":
@@ -165,6 +170,14 @@ def main(argv=None):
     args = parser().parse_args(argv)
     root = args.root.resolve()
     try:
+        if args.command == "compare":
+            from .comparison import compare, render_html, write_report
+            result = compare(args.before, args.after)
+            if args.output:
+                print(write_report(result, args.output, args.format))
+            else:
+                print(render_html(result) if args.format == "html" else json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
         if args.command == "case":
             cfg = read(args.config) if args.config else None
             case = create(root, args.tenant, args.user, args.start, args.end, cfg)

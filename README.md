@@ -1,6 +1,6 @@
 # Bacon Egg and Cheese
 
-BEC v0.6.0 is a standalone business email compromise investigation tool for Microsoft 365 and Google Workspace. Give it a tenant, an account and a time window to build one chronology from Entra, Exchange, Defender email telemetry and Workspace audit records. The `bacon-egg-and-cheese` distribution owns the `bec` package, command, report templates, and synthetic fixtures; it does not require another incident-response project.
+BEC v0.7.0 is a standalone business email compromise investigation tool for Microsoft 365 and Google Workspace. Give it a tenant, an account and a time window to build one chronology from Entra, Exchange, Defender email telemetry and Workspace audit records. Compare saved cases offline to see evidence-linked additions and changed record content, with collection coverage kept explicit. The `bacon-egg-and-cheese` distribution owns the `bec` package, command, report templates, and synthetic fixtures; it does not require another incident-response project.
 
 ## Install and run
 
@@ -112,11 +112,29 @@ The bundled example lives in `bec/data/demo`. It includes a separate traveler ac
 
 For Defender exports, use the exact table name as the dataset key. Supported tables are `EmailEvents`, `EmailUrlInfo`, `EmailAttachmentInfo`, `UrlClickEvents`, `EmailPostDeliveryEvents` and `AlertEvidence`. Files can contain a native row array or an Advanced Hunting response with a `results` array. Preserve column names and timestamps. See `bec/data/demo/defender-bundle.json` for a complete manifest. To add such a bundle to a v0.1 export case, use `investigate ID --defender --bundle FILE`.
 
+## Compare saved cases offline
+
+Pass two complete case directories, in earlier/later order. They can reside in different case stores. Comparison verifies preserved raw evidence, reads no live provider, and leaves both case directories unchanged. It does not use derived timelines as evidence.
+
+```powershell
+.\.venv\Scripts\bec.exe compare C:\IR\cases\CLIENT-A\INC-2026-aaaaaaaaaaaa C:\IR\cases\CLIENT-A\INC-2026-bbbbbbbbbbbb --output C:\IR\reports\delta.json
+.\.venv\Scripts\bec.exe compare C:\IR\cases\CLIENT-A\INC-2026-aaaaaaaaaaaa C:\IR\cases\CLIENT-A\INC-2026-bbbbbbbbbbbb --format html --output C:\IR\reports\delta.html
+```
+
+Use real case directory names in place of those examples. Without `--output`, the selected report format is printed to stdout; JSON is the default. Output files must be new and outside both inputs. The command uses explicit directories, so `--root` is not used for comparison.
+
+The report separates newly observed records, records only observed in the earlier input, and conflicting content sharing a native identity. Each changed record includes its original file link, SHA-256 hash, and zero-based record index. Identical duplicate rows and different page/row ordering do not create evidence additions. The report also shows incident-window, investigation-setting, query, normalization, and coverage differences.
+
+**Absence is not deletion.** A record missing from the later case does not establish that a mailbox rule, OAuth grant, or other configuration was deleted or remediated. A newly observed record may have existed before either collection. Comparison includes all preserved rows, including baseline and out-of-scope evidence; it is an evidence inventory comparison, not a comparison of current tenant state.
+
+Tenant aliases, Microsoft directory IDs, and Workspace customer IDs must match, including missing bindings. For Microsoft exports without a native directory binding in either case, the report explicitly identifies reliance on the analyst-supplied tenant alias. Comparisons return `0` when the report is produced, even when evidence or coverage differs; invalid inputs return `1`. [Comparison semantics and limits](docs/comparison.md).
+
 ## Commands
 
 | Command | Result |
 | --- | --- |
 | `bec demo` | Create and investigate the bundled synthetic email case |
+| `bec compare BEFORE_DIR AFTER_DIR [--format json\|html] [--output FILE]` | Verify and compare saved raw evidence without changing either source case |
 | `bec case create --tenant … --user … --start … --end … [--config FILE]` | Create a case and print its ID |
 | `bec collect ID [--bundle FILE] [--dry-run] [--defender] [--workspace-config FILE]` | Acquire primary-user evidence and historical sign-ins |
 | `bec investigate ID [--bundle FILE] [--dry-run] [--defender] [--workspace-config FILE]` | Collect, expand entity scope, correlate, render and summarize |
@@ -152,7 +170,7 @@ This release covers Microsoft 365 investigation and Google Workspace login, OAut
 
 BEC's Defender collection is limited to the six email-related tables listed above. It does not collect endpoint telemetry, install device agents, capture disks or memory, execute ransomware exercises, or perform containment. It does not reset credentials, revoke tokens, remediate mailbox rules, fetch message bodies, or expose an arbitrary hunting-query console. Identity and OAuth evidence supports the email/account investigation; it does not turn this project into a device capture tool.
 
-This standalone source continues the email-only v0.3.0 implementation as v0.6.0. It does not include the endpoint/image features from the intervening combined releases. Use a separate case directory for this tool; opening combined Windows/image cases is not a supported migration path. Export original cloud records into a tenant-bound bundle when transferring an investigation, and retain the original case separately.
+This standalone source continues the email-only v0.3.0 implementation, independently packaged in v0.6.0 and extended with saved-case comparison in v0.7.0. It does not include the endpoint/image features from the intervening combined releases. Use a separate case directory for this tool; opening combined Windows/image cases is not a supported migration path. Export original cloud records into a tenant-bound bundle when transferring an investigation, and retain the original case separately.
 
 The automated suite exercises fixture reconstruction and simulated Microsoft API exchanges, including permissions errors, throttling, pagination, search resumption and integrity failures. Tenant-specific authentication, provisioning, retention and service behavior require a live validation in your environment.
 

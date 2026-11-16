@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bacon-egg-and-cheese"
-version = "0.6.0"
+version = "0.7.0"
 description = "Evidence-backed Microsoft 365 and Google Workspace business email compromise investigations"
 readme = "README.md"
 license = {file = "LICENSE"}
