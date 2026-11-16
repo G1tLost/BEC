@@ -1,0 +1,172 @@
+# Bacon Egg and Cheese
+
+BEC v0.6.0 is a standalone business email compromise investigation tool for Microsoft 365 and Google Workspace. Give it a tenant, an account and a time window to build one chronology from Entra, Exchange, Defender email telemetry and Workspace audit records. The `bacon-egg-and-cheese` distribution owns the `bec` package, command, report templates, and synthetic fixtures; it does not require another incident-response project.
+
+## Install and run
+
+Use Python 3.12 or later on Windows, macOS, or Linux. Run these commands from this repository's root. The base installation supports offline export investigations and the synthetic demo; no provider credentials are needed.
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\bec.exe --version
+.\.venv\Scripts\bec.exe --root "$env:TEMP\bec-demo" demo
+```
+
+The generated `.venv\Scripts\bec.exe` is the Python console launcher. No compiled application or bundled runtime is checked into this repository. The same entry point is available as `.\.venv\Scripts\python.exe -m bec`.
+
+On macOS or Linux:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+.venv/bin/bec --version
+.venv/bin/python -m bec --root /tmp/bec-demo demo
+```
+
+For live Microsoft or Google collection, install the optional authentication libraries into the same environment:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install ".[live]"
+```
+
+On macOS or Linux use `.venv/bin/python -m pip install '.[live]'`. The examples below use the Windows console launcher explicitly; use `.venv/bin/bec` on other systems. Global options such as `--root` and `--verbose` precede the command.
+
+## Read the synthetic investigation
+
+Open the HTML path printed by `demo`. Under **Correlation findings**, find **Workspace OAuth grant followed by Gmail message access** and select **Show linked events**. The three rows show a login, an app authorization and a Gmail audit event for that app. Expand a row for the raw record and child-event index. Keep the case directory together so its evidence links work.
+
+Select **October invoice** under **Message evidence**, or click the subject on a mailbox row. The sample links eight observations: a message trace, Defender's email, URL and attachment records, a blocked Safe Links click, an Exchange mailbox read, XDR alert evidence and a later post-delivery action. Expand **linked observations** to inspect each source. URLs appear as plain text. File names and hashes are searchable.
+
+## Investigate a Microsoft tenant
+
+1. Configure the application permissions and Exchange message trace prerequisite in [Security and permissions](docs/security.md).
+2. Copy `config/example-tenant.json` to `client-a.json`. Set your tenant alias, Entra directory GUID and application client GUID. Set the display timezone and known shared egress CIDRs for your tenant.
+3. Supply an app certificate with its private key through `BEC_CERTIFICATE_PATH`. The credential can also come from a secret store that sets `BEC_CLIENT_SECRET` in the process environment.
+4. Choose an incident window within your tenant's available log retention. This example investigates the last completed 24 hours.
+
+```powershell
+$env:BEC_CERTIFICATE_PATH = 'C:\IR\credentials\bec-app.pem'
+$start = [DateTimeOffset]::UtcNow.AddDays(-1).ToString('o')
+$end = [DateTimeOffset]::UtcNow.ToString('o')
+$env:BEC_CASES = 'C:\IR\cases'
+$caseId = .\.venv\Scripts\bec.exe case create --config .\client-a.json --tenant CLIENT-A --user analyst@example.com --start $start --end $end
+.\.venv\Scripts\bec.exe investigate $caseId --dry-run
+.\.venv\Scripts\bec.exe --verbose investigate $caseId
+.\.venv\Scripts\bec.exe verify $caseId
+```
+
+The case store defaults to `cases` under the working directory. Set `BEC_CASES` or supply `--root D:\IR\cases` **before** the command to choose another store. Keep real cases and credentials outside the source checkout. Tenant binding and investigation options are captured at creation. The command prints only the case ID on successful creation.
+
+New cases include Defender collection by default. To enable it for an existing v0.1 live case, grant the application the Microsoft Graph application permission `ThreatHunting.Read.All` and run the following from the same case store. The dry run previews the plan. The investigation saves the choice and collects the newly enabled sources.
+
+```powershell
+.\.venv\Scripts\bec.exe investigate $caseId --defender --dry-run
+.\.venv\Scripts\bec.exe investigate $caseId --defender
+```
+
+For a tenant without Defender telemetry, set `"defender": false` under the profile's `options`. A denied or unavailable hunting table produces a named telemetry gap while other workloads continue. [Permission and provisioning details](docs/security.md)
+
+## Investigate Google Workspace
+
+Copy `config/example-workspace.json` to `workspace.json`. Set the case tenant alias, the Workspace customer ID, and the reporting administrator's primary email. Configure read-only delegation and point `BEC_GOOGLE_SERVICE_ACCOUNT` to the service account key file. A Workspace-only profile can create a case without Microsoft credentials. [Google Workspace setup and access](docs/workspace.md)
+
+```powershell
+$env:BEC_GOOGLE_SERVICE_ACCOUNT = 'C:\IR\credentials\workspace-reports.json'
+$start = [DateTimeOffset]::UtcNow.AddDays(-1).ToString('o')
+$end = [DateTimeOffset]::UtcNow.ToString('o')
+$env:BEC_CASES = 'C:\IR\cases'
+$caseId = .\.venv\Scripts\bec.exe case create --config .\workspace.json --tenant CLIENT-A --user analyst@example.com --start $start --end $end
+.\.venv\Scripts\bec.exe investigate $caseId
+```
+
+For an existing Microsoft case, use the same case store and tenant alias. The first command previews collection. The second saves the Google customer binding and adds Workspace evidence to the case.
+
+```powershell
+.\.venv\Scripts\bec.exe investigate $caseId --workspace-config .\workspace.json --dry-run
+.\.venv\Scripts\bec.exe investigate $caseId --workspace-config .\workspace.json
+```
+
+## Work with an existing export
+
+Copy a tenant's JSON exports into one directory. Create a `bundle.json` alongside them. For example:
+
+```json
+{
+  "tenant": "CLIENT-A",
+  "directory_id": "11111111-1111-1111-1111-111111111111",
+  "files": [
+    {"dataset": "interactive", "path": "signins.json"},
+    {"dataset": "ual", "path": "mailbox.json"}
+  ]
+}
+```
+
+Use the same tenant and directory ID as the case. For offline cases with no configured directory ID, omit it from the bundle. Records declaring a native organization ID require a matching profile. Each file may hold a JSON array or a Graph response object with a `value` array. UAL also accepts arrays containing Exchange `AuditData` JSON strings. Available dataset keys are `interactive`, `noninteractive`, `directory`, `ual`, `trace`, and `service_principal`. Keep the original byte encoding as UTF-8, optionally with BOM. Exports should contain evidence from one tenant.
+
+```powershell
+.\.venv\Scripts\bec.exe investigate $caseId --bundle .\exports\bundle.json
+```
+
+The bundled example lives in `bec/data/demo`. It includes a separate traveler account and shared corporate egress traffic for testing user scoping.
+
+For Defender exports, use the exact table name as the dataset key. Supported tables are `EmailEvents`, `EmailUrlInfo`, `EmailAttachmentInfo`, `UrlClickEvents`, `EmailPostDeliveryEvents` and `AlertEvidence`. Files can contain a native row array or an Advanced Hunting response with a `results` array. Preserve column names and timestamps. See `bec/data/demo/defender-bundle.json` for a complete manifest. To add such a bundle to a v0.1 export case, use `investigate ID --defender --bundle FILE`.
+
+## Commands
+
+| Command | Result |
+| --- | --- |
+| `bec demo` | Create and investigate the bundled synthetic email case |
+| `bec case create --tenant … --user … --start … --end … [--config FILE]` | Create a case and print its ID |
+| `bec collect ID [--bundle FILE] [--dry-run] [--defender] [--workspace-config FILE]` | Acquire primary-user evidence and historical sign-ins |
+| `bec investigate ID [--bundle FILE] [--dry-run] [--defender] [--workspace-config FILE]` | Collect, expand entity scope, correlate, render and summarize |
+| `bec analyze ID` or `bec report ID` | Verify stored raw evidence and rebuild the analysis locally |
+| `bec pivot ip 198.51.100.74 --case ID [--dry-run]` | Add a persistent analyst IP seed and rebuild the case |
+| `bec pivot user user@example.com --case ID [--dry-run]` | Add a persistent analyst user seed |
+| `bec timeline ID --format html` | Rebuild timelines and print the selected HTML, CSV or JSON path |
+| `bec timeline export-timesketch ID` | Write JSONL containing datetime, timestamp_desc and message |
+| `bec evidence ID` / `bec verify ID` | Display the evidence manifest / verify raw bytes and inventory |
+
+A dry run shows the initial queries and the rules for later evidence-driven expansion. Rerunning live collection skips completed queries and retries failed queries. A new case performs a fresh acquisition, including any records ingested by Microsoft after the first search.
+
+Exit code **0** indicates completion, **2** indicates completion with telemetry gaps, **1** indicates a runtime error, and **130** indicates analyst interruption. Argument errors also return **2**, accompanied by usage/error output. Missing history, limits, permission failures, and unparseable records are visible in the case. In PowerShell, inspect `$LASTEXITCODE` after a command.
+
+## Read a case
+
+| File | Contents |
+| --- | --- |
+| `raw/<dataset>/<sha256>.json`, `evidence_manifest.json` | Original response or export bytes, origin, query scope, acquisition time, hash and record counts |
+| `collection_summary.json`, `bec.log`, `telemetry_gaps.json` | Per-query status, operational log and consolidated gaps |
+| `normalized/events.jsonl`, `baseline.json` | Scoped incident events, score contributions, evidence references and historical observations |
+| `entities.json`, `entities/graph.json`, `pivots/queue.json` | Typed entities, event-backed relationships and expansion decisions |
+| `findings.json` | Sequence matches, join identifiers and ordered supporting records |
+| `timeline/complete.csv` | One row per normalized in-scope incident event |
+| `timeline/timeline.csv` | Investigation view with repetitive mailbox activity grouped |
+| `timeline/timeline.json`, `timeline/timeline.html` | Both views, correlation findings and telemetry gaps |
+
+All fixture addresses and events are synthetic. A sequence match describes observed order and shared identifiers. Assessing malicious control, phishing interaction or fraudulent intent requires independent evidence. Baseline sizes are reported per user so an analyst can judge the significance of a new location or device.
+
+## Scope and verification
+
+This release covers Microsoft 365 investigation and Google Workspace login, OAuth and Gmail audit acquisition and correlation. Investigation runs perform forensic reads and create Purview search jobs. Each provider can also run on its own.
+
+BEC's Defender collection is limited to the six email-related tables listed above. It does not collect endpoint telemetry, install device agents, capture disks or memory, execute ransomware exercises, or perform containment. It does not reset credentials, revoke tokens, remediate mailbox rules, fetch message bodies, or expose an arbitrary hunting-query console. Identity and OAuth evidence supports the email/account investigation; it does not turn this project into a device capture tool.
+
+This standalone source continues the email-only v0.3.0 implementation as v0.6.0. It does not include the endpoint/image features from the intervening combined releases. Use a separate case directory for this tool; opening combined Windows/image cases is not a supported migration path. Export original cloud records into a tenant-bound bundle when transferring an investigation, and retain the original case separately.
+
+The automated suite exercises fixture reconstruction and simulated Microsoft API exchanges, including permissions errors, throttling, pagination, search resumption and integrity failures. Tenant-specific authentication, provisioning, retention and service behavior require a live validation in your environment.
+
+Install the optional authentication libraries before running the full suite. Tests remain offline and require no credentials, but provider transport tests import SDK exception types. The base installation alone remains sufficient for the demo and export-only investigations.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install ".[live]"
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+On macOS or Linux, run `.venv/bin/python -m pip install '.[live]'`, then `.venv/bin/python -m unittest discover -s tests -v`. Tests run offline against synthetic fixtures and mocked provider exchanges. Live authentication, tenant provisioning, licensing, retention, and provider behavior need validation in the intended environment.
+
+[Architecture and analysis rules](docs/architecture.md) · [Security and permissions](docs/security.md) · [Validation record](docs/validation.md) · [Component agent instructions](agents/bec-email.md)
+
+## License
+
+MIT, preserving the [Bacon Egg and Cheese contributors' attribution](LICENSE).

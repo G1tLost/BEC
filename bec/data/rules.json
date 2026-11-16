@@ -1,0 +1,12 @@
+[
+  {"id":"delivery-rule-chain","name":"Message delivery preceded failed and successful sign-ins, mailbox access and an inbox rule","steps":["mail.delivery","authentication.failure","authentication.success","mail.access","mail.rule.*"],"keys":["mail_user"],"minutes":45,"points":35,"same_client_after_delivery":true},
+  {"id":"multi-user-ip","name":"Two accounts signed in from the same unusual IP","steps":["authentication.success","authentication.success"],"keys":["ip"],"minutes":60,"points":25,"distinct_users":true,"first_anomaly":true},
+  {"id":"fail-success","name":"Two failed sign-ins followed by success","steps":["authentication.failure","authentication.failure","authentication.success"],"keys":["user","ip"],"minutes":10,"points":30},
+  {"id":"auth-mail","name":"Successful sign-in followed by mailbox access","steps":["authentication.success","mail.access"],"keys":["user","ip"],"minutes":15,"points":12},
+  {"id":"auth-rule","name":"Unusual sign-in followed by inbox rule activity","steps":["authentication.success","mail.rule.*"],"keys":["user","ip"],"minutes":30,"points":50,"first_anomaly":true},
+  {"id":"session-rule","name":"Unusual session followed by inbox rule activity","steps":["authentication.success","mail.rule.*"],"keys":["user","session"],"minutes":30,"points":50,"first_anomaly":true},
+  {"id":"access-search-send","name":"Mailbox access, search and outbound message","steps":["mail.access","mail.search","mail.send"],"keys":["user","session"],"minutes":60,"points":35},
+  {"id":"session-geography","name":"Session used across countries before mailbox access","steps":["authentication.success","authentication.success","mail.access"],"keys":["user","session"],"minutes":45,"points":65,"country_change":true},
+  {"id":"auth-method","name":"Unusual sign-in followed by authentication method change","steps":["authentication.success","identity.method_change"],"keys":["user"],"minutes":30,"points":35,"first_anomaly":true},
+  {"id":"oauth-use","name":"Consent grant followed by service principal sign-in","steps":["oauth.grant","application.success"],"keys":["principal"],"minutes":120,"points":40}
+]

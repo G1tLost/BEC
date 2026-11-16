@@ -1,0 +1,11 @@
+{
+  "tenant": "CLIENT-A",
+  "google_workspace": {
+    "customer_id": "C012example",
+    "admin_email": "reports-admin@example.com"
+  },
+  "options": {
+    "timezone": "America/New_York",
+    "baseline_days": 30
+  }
+}

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>BEC · Investigation timeline</title>
+<style>
+:root{color-scheme:light;--ink:#172923;--muted:#50635c;--line:#d1d9d2;--green:#165c46;--page:#f4f5ef}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.5 "Segoe UI",Arial,sans-serif}header{background:#193d31;color:#fff;padding:26px max(5vw,20px) 30px;border-top:5px solid #f4bd57}h1{font:normal clamp(28px,4vw,46px)/1.1 Georgia,serif;margin:14px 0}header p{margin:0;color:#d4e5db}.brand{letter-spacing:.07em;font-weight:600;font-size:12px}main{max-width:1600px;margin:auto;padding:26px max(4vw,16px)}h2{font:normal 26px Georgia,serif;margin:26px 0 12px}label{display:flex;flex-direction:column;font-size:12px;font-weight:650;gap:3px}button,select,input{font:inherit;padding:6px 9px;border:1px solid #9aaea3;border-radius:4px;background:white;color:var(--ink)}button,summary,select{cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,input:focus-visible,summary:focus-visible,select:focus-visible{outline:3px solid #b57815}nav,.controls,.pager,.metrics{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.metrics{gap:20px;color:var(--muted);padding-bottom:16px;border-bottom:1px solid var(--line)}.metrics b{color:var(--ink)}.controls{align-items:end;margin:12px 0}.controls input{min-width:175px}.controls select{max-width:220px}.wrap{overflow-x:auto;background:white;border:1px solid var(--line);border-radius:5px}table{border-collapse:collapse;width:100%;text-align:left;font-size:14px}th{background:#e6ede6;font-size:12px;font-weight:650;white-space:nowrap}td,th{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}td{overflow-wrap:anywhere}th button{background:transparent;border:0;padding:0;font-weight:650}.time{min-width:175px;font-variant-numeric:tabular-nums}details{margin:10px 0;background:#fff;border:1px solid var(--line);border-radius:4px;padding:9px 12px}summary{font-weight:600}td details{margin:0;padding:0;border:0}a{color:var(--green)}.tag{display:inline-block;font-size:12px;padding:2px 7px;border-radius:3px;background:#e8eee8}.suspicious{background:#f9e5bf}.pager{justify-content:flex-end;margin:10px 0}ul{padding-left:22px}li{margin:4px 0}small{display:block;color:var(--muted)}#window{font-variant-numeric:tabular-nums}.empty{text-align:center;padding:30px}.count{margin-right:auto}
+</style></head><body><header><div class="brand">BACON EGG AND CHEESE / INCIDENT RESPONSE</div><h1>Investigation timeline</h1><p id="identity"></p><p id="window"></p></header><main>
+<div class="metrics" id="metrics"></div>
+<details id="gaps"><summary id="gap-title"></summary><ul id="gap-list"></ul></details>
+<details><summary id="find-title"></summary><ul id="find-list"></ul></details>
+<section id="message-panel" hidden aria-labelledby="message-title"><h2 id="message-title">Message evidence</h2><div class="controls"><label>Message<select id="message-select" aria-label="Message"></select></label><button id="all-events">Show all events</button></div><div id="message-info"></div></section>
+<h2>Chronology</h2><div class="controls"><label>Timeline<select id="view"><option value="relevant">Investigation</option><option value="complete">Complete</option></select></label><label>Search<input id="search" type="search" placeholder="Event, entity or evidence"></label><div class="controls" id="filters"></div><button id="reset">Clear filters</button></div>
+<div class="wrap"><table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table></div><div class="pager"><span class="count" id="count" role="status"></span><button id="prev">Previous</button><button id="next">Next</button></div></main>
+<script type="application/json" id="payload">__CASE_DATA__</script><script>
+"use strict";
+const data=JSON.parse(document.getElementById("payload").textContent), s=data.summary;
+const el=id=>document.getElementById(id);
+el("view").setAttribute("aria-label","Timeline");
+function node(tag,text){const n=document.createElement(tag);if(text!=null)n.textContent=text;return n}
+function fmt(utc){return utc.replace("T"," ").replace(/\.0+Z$/,"Z")}
+el("identity").textContent=[s.tenant,s.user,s.case_id].join("  /  ");
+el("window").textContent=fmt(s.start)+"  →  "+fmt(s.end);
+for(const [value,title] of [[s.event_count,"events"],[s.investigation_rows,"investigation rows"],[s.findings,"findings"],[s.mailbox_message_matches,"mailbox/message matches"],[s.gaps,"telemetry gaps"]]){
+ const d=node("span");d.append(node("b",value)," "+title);el("metrics").append(d)}
+el("gap-title").textContent="Telemetry gaps ("+s.gaps+")";
+for(const g of data.gaps){el("gap-list").append(node("li",[g.dataset,g.value,g.reason,g.evidence?g.evidence.file+" ["+g.evidence.record_index+"]":""].filter(Boolean).join(" · ")))}
+el("find-title").textContent="Correlation findings ("+s.findings+")";
+for(const f of data.findings){const li=node("li",f.observation+" · "+Object.values(f.join).join(" / "));li.append(node("small",f.id+" · "+f.event_ids.join(" → ")));
+ const b=node("button","Show linked events");b.onclick=()=>{el("reset").click();el("view").value="complete";el("search").value=f.id;resetPage();el("rows").scrollIntoView()};li.append(b);el("find-list").append(li)}
+const fields=[["source","Source"],["actor","Actor"],["src_ip","IP"],["phase","Phase"],["assessment","Assessment"]];
+const filters={};
+for(const [key,title] of fields){const lab=node("label",title),sel=node("select");sel.append(new Option("All",""));for(const v of [...new Set(data.complete.map(r=>r[key]).filter(Boolean))].sort()){sel.append(new Option(v,v))}
+ sel.setAttribute("aria-label",title);lab.append(sel);el("filters").append(lab);filters[key]=sel;sel.onchange=resetPage}
+const cols=[["timestamp_utc","Time · "+s.timezone],["event","Event"],["actor","Actor / target"],["src_ip","Source IP"],["assessment","Assessment"],["relevance_score","Relevance"],["count","Evidence"]];
+let page=0,sortKey="timestamp_utc",asc=true;
+const messages=new Map(data.messages.map(m=>[m.id,m]));
+const messageTerms=new Map(data.messages.map(m=>[m.id,JSON.stringify([m.network_message_id,m.internet_message_ids,
+ m.subjects,m.urls,m.attachments]).toLowerCase()]));
+const messageSelect=el("message-select");
+messageSelect.append(new Option("All messages",""));
+for(const m of data.messages){
+ const subject=m.subjects.join(", ")||m.network_message_id;
+ messageSelect.append(new Option(subject+" · "+m.recipient+" · "+m.network_message_id,m.id))
+}
+el("message-panel").hidden=!messages.size;
+function rawLink(ref){
+ const a=node("a",ref.file.split("/").slice(-2,-1)[0]+" ["+ref.record_index+"]");
+ a.href="../"+ref.file;a.target="_blank";a.rel="noopener";return a
+}
+function chooseMessage(id){
+ messageSelect.value=id;
+ const panel=el("message-info");panel.replaceChildren();
+ const m=messages.get(id);
+ if(m){
+  panel.append(node("p",[m.network_message_id,...m.internet_message_ids,m.recipient].join(" · ")));
+  for(const u of m.urls)panel.append(node("div","URL in message · "+(u.Url||"unavailable")+(u.UrlLocation?" · "+u.UrlLocation:"")));
+  for(const f of m.attachments)panel.append(node("div",["Attachment",f.FileName,f.SHA256||f.SHA1,f.ThreatTypes].filter(Boolean).join(" · ")));
+  const detail=node("details"),list=node("ul");detail.append(node("summary",m.observations.length+" linked observations"));
+  for(const o of m.observations){const item=node("li",fmt(o.utc)+" · "+o.operation+" · ");item.append(rawLink(o.evidence));list.append(item)}
+  detail.append(list);panel.append(detail)
+ }
+ el("all-events").disabled=!m;resetPage()
+}
+el("all-events").disabled=true;
+messageSelect.onchange=()=>chooseMessage(messageSelect.value);
+el("all-events").onclick=()=>chooseMessage("");
+function resetPage(){page=0;render()}
+for(const [key,title] of cols){const th=node("th");const b=node("button",title);b.onclick=()=>{asc=sortKey===key?!asc:true;sortKey=key;resetPage()};th.append(b);el("head").append(th)}
+function evidence(r){const d=node("details");d.append(node("summary",r.count+" record"+(r.count===1?"":"s")));d.ontoggle=()=>{if(!d.open||d.children.length>1)return;
+ if(r.count>1)d.append(node("small","Through "+fmt(r.end_utc)));
+ if(r.reason.length)d.append(node("p",r.reason.join(" · ")));if(r.folders.length)d.append(node("p","Folders: "+r.folders.join(", ")));if(r.messages.length)d.append(node("p","Message IDs: "+r.messages.join(", ")));
+ for(const [key,value] of Object.entries(r.defender))d.append(node("div",key+" · "+value));
+ for(const [key,value] of Object.entries(r.workspace))d.append(node("div",key+" · "+(typeof value==="object"?JSON.stringify(value):value)));
+ for(const note of r.link_notes)d.append(node("div",note));
+ for(const ref of r.evidence_reference){const x=node("div");const position="["+ref.record_index+"]"+(ref.event_index==null?"":".events["+ref.event_index+"]");const a=node("a",ref.file.split("/").pop().slice(0,12)+"… "+position);a.href="../"+ref.file;a.target="_blank";a.rel="noopener";x.append(a,node("small",ref.event_id));d.append(x)}
+ if(r.findings.length)d.append(node("small",r.findings.join(" · ")))};
+ return d}
+function render(){const term=el("search").value.trim().toLowerCase();let rows=data[el("view").value].filter(r=>(!messageSelect.value||r.message_links.includes(messageSelect.value))&&fields.every(([k])=>!filters[k].value||r[k]===filters[k].value)&&(!term||JSON.stringify(r).toLowerCase().includes(term)||r.message_links.some(id=>messageTerms.get(id).includes(term))));
+ rows.sort((a,b)=>{const x=a[sortKey],y=b[sortKey];return (x<y?-1:x>y?1:0)*(asc?1:-1)});
+ const start=page*50;const body=el("rows");body.replaceChildren();for(const r of rows.slice(start,start+50)){const tr=node("tr");
+ const time=node("td",r.timestamp_local);time.className="time";time.append(node("small",fmt(r.timestamp_utc)));
+ const event=node("td",r.event);event.append(node("small",r.source+" · "+r.phase));
+ for(const id of r.message_links){const m=messages.get(id),b=node("button",m.subjects[0]||m.network_message_id);
+  b.title="Show message evidence";b.onclick=()=>{el("search").value="";Object.values(filters).forEach(f=>f.value="");chooseMessage(id);el("message-panel").scrollIntoView()};event.append(b)}
+ const actor=node("td",r.actor||"—");if(r.target)actor.append(node("small",r.target));const assessment=node("td");const badge=node("span",r.assessment);badge.className="tag "+r.assessment.toLowerCase();assessment.append(badge,node("small",r.confidence+" confidence"));const ev=node("td");ev.append(evidence(r));tr.append(time,event,actor,node("td",r.src_ip||"—"),assessment,node("td",r.relevance_score),ev);body.append(tr)}
+ if(!rows.length){const tr=node("tr"),td=node("td","No events match this view.");td.colSpan=7;td.className="empty";tr.append(td);body.append(tr)}
+ el("count").textContent=rows.length?(start+1)+"–"+Math.min(start+50,rows.length)+" of "+rows.length+" rows":"0 rows";el("prev").disabled=page===0;el("next").disabled=start+50>=rows.length;
+ Array.from(el("head").children).forEach((th,i)=>th.setAttribute("aria-sort",cols[i][0]===sortKey?(asc?"ascending":"descending"):"none"))}
+el("view").onchange=resetPage;el("search").oninput=resetPage;el("reset").onclick=()=>{el("search").value="";Object.values(filters).forEach(f=>f.value="");chooseMessage("")};el("prev").onclick=()=>{page--;render()};el("next").onclick=()=>{page++;render()};render();
+</script></body></html>

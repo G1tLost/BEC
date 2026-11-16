@@ -1,0 +1,47 @@
+# Architecture
+
+## Acquisition and replay
+
+The command line creates a case under a tenant alias and unique case ID. The captured profile contains the tenant binding, time window and investigation limits. A process-level file lock serializes mutations to that case. Independent cases can run concurrently.
+
+`graph.plan` produces typed dataset queries from an entity and timeframe. `graph.fetch` yields each page's original bytes. A live collector and the export-bundle adapter share `collection.acquire`. It checks tenant markers, stores each unique page by SHA-256, and records the query that retrieved it. An on-disk transaction record allows an interrupted raw-page write to be reconciled against the manifest. Duplicate pages retain their acquisition contexts without duplicating bytes. A successful query is checkpointed after its final page.
+
+Read requests retry transient network failures and throttling, honoring numeric Retry-After values within the per-request budget. Audit search submission retries explicit throttling. An ambiguous submit outcome is recorded as a gap. Searches that run longer than the polling budget retain their server-side job ID for the next run. Other datasets can continue when a workload returns a permission, license, or service error.
+
+The raw manifest binds each artifact's dataset, tenant, query, record count, earliest and latest readable timestamps, acquisition time and collector version. A zero-based index selects the record in the source's array or Graph value array. A normalization failure records that pointer in telemetry gaps. Duplicate vendor IDs have a deterministic event ID, with additional evidence references on the normalized event. Trace IDs also include the recipient because one message can reach several mailboxes.
+
+## Time and scope
+
+The analysis interval includes the start and excludes the end. Microsoft APIs may include the upper endpoint of a page or chunk. Replay deduplicates and applies the half-open interval. Times are stored in UTC with microsecond precision. The normalized event keeps the original timestamp string at its source precision. Microsoft documents Exchange CreationTime as UTC. Other timezone-free timestamps become visible parsing gaps. [Exchange audit schema](https://learn.microsoft.com/en-us/office/office-365-management-api/office-365-management-activity-api-schema)
+
+The baseline contains successful sign-ins strictly before the incident. New features are scored only when a prior observation for that feature exists for that user. Features include client IP, country, region, ASN, device, OS, browser, user agent, authentication method, client application, app ID and UTC hour. The baseline file records reference counts and observed values.
+
+The initial user seeds a breadth-first queue. Anomalous or failed sign-ins and rule changes can introduce an IP. Sign-ins on that IP can introduce another user. A consent event can introduce a service principal. A discovered Entra user object ID enables target-side directory audit collection. Device, session, correlation ID and message identifiers remain available in the graph and for analysis. Live expansion obeys the tenant boundary, time window, depth, entity and raw record budgets. Known egress networks and IPs shared by enough users are suppressed. Live IP sign-in searches use small pages and stop early when they observe the configured user threshold.
+
+Exports run the same scoping logic over locally available records. Bundle files can contain baseline and unrelated records. Raw bytes are retained, while the reported incident timeline contains records reachable within the configured investigation scope.
+
+## Correlation and rendering
+
+Workspace collection plans account-specific login, OAuth token and Gmail queries. Each original page remains a separate evidence artifact. One Reports activity can contain several events. Replay emits each child separately, preserving the zero-based activity and event indexes and deduplicating repeated pages by customer, application, timestamp, unique qualifier and child position. The Workspace login baseline stores observations separately from Entra baselines.
+
+The Workspace correlation pass groups by tenant, customer and actor. A login and grant can match when both have the same IP and are separated by at most 30 minutes. A grant can match a Gmail API call in the token audit or a Gmail app-access event within two hours when the user and OAuth client ID agree. A revocation clears the earlier grant. See the [Workspace field and coverage guide](workspace.md).
+
+Defender collection issues separate hunting queries for each table. URL records have no user field, so their query selects network message IDs from sender- or recipient-scoped EmailEvents in the case window. AlertEvidence is queried independently by account and by those network IDs. The collector bisects dense result windows into disjoint intervals; an unsplittable dense timestamp or a partial response produces a coverage gap. Retained pages include the executed KQL and raw result bytes in the case evidence store.
+
+Message correlation groups EmailEvents by tenant, network message ID and recipient. An attachment must agree with the recipient, and a Safe Links click must identify that recipient and the Email workload. The exact internet message ID and mailbox owner bridge Defender to UAL. Send activity uses the sender mailbox. The comparison strips transport angle brackets and normalizes domain case, preserving the local part. An internet ID matching several network IDs in the same mailbox results in a note on the event. Missing IDs, folder-level sync records, subject text, shared filenames and nearby timestamps do not establish a message link.
+
+Each message in the timeline JSON has the linked observation IDs, source pointers, URL inventory and attachment metadata. Each mailbox row points to its matched messages. The HTML message selector restricts the chronology to those observations. Clustered reads have the same set of message links. Safe Links outcomes and post-delivery actions retain their vendor values; a blocked click, mailbox access, or attachment inventory alone cannot establish that a file ran or a URL loaded. [Defender URL schema](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailurlinfo-table) · [Defender attachment schema](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailattachmentinfo-table)
+
+`bec/data/rules.json` describes ordered event sequences, join keys, time windows and relevance contributions. Examples include two failures followed by a success on the same account and IP, mailbox access following an unusual session, and a consent grant followed by a sign-in of the same service principal. The sequence spanning message delivery and sign-in joins the recipient to the subsequent account and requires a shared client IP on the subsequent authentication and mailbox records.
+
+A join requires populated identifiers and strictly increasing timestamps. For each join key the matcher tracks the most recent qualifying prefix for each step. The output represents matched chains, rather than every permutation of overlapping sequences. Shared IPs, timestamps, country changes, and temporal proximity can have ordinary explanations. Findings report the observed relationships and name the underlying events. A source reporting a failed configuration change cannot complete a successful persistence sequence.
+
+Event relevance is the sum of its recorded points. The assessment describes the interpretation of an event, while confidence describes the support for that interpretation. A high-confidence sequence match establishes the observed sequence only.
+
+The complete timeline emits one row per in-scope event. The investigation timeline groups mailbox access by actor, mailbox, source IP, session, assessment and result, with at most five minutes between consecutive cluster members. The group retains all source references, message IDs and folders. The HTML includes sortable views, filters, pagination and expandable evidence, and works directly from disk. Timesketch JSONL uses its documented import fields. [Timesketch JSONL](https://timesketch.org/guides/user/import-from-json-csv/)
+
+## Implementation boundaries
+
+The release uses native Graph queries and a narrow export format as its collector interface. Existing collection projects cover a wider range of artifacts. A separate collector can supply compatible vendor JSON to the bundle importer. The implementation is original and does not embed code from these projects. [CISA Untitled Goose Tool](https://github.com/cisagov/untitledgoosetool) · [Invictus IR Microsoft Extractor Suite](https://github.com/invictus-ir/Microsoft-Extractor-Suite) · [ANSSI DFIR-O365RC](https://github.com/ANSSI-FR/DFIR-O365RC)
+
+Replay indexes one case in memory. The configurable raw-record budget defaults to 100,000 across datasets, including baseline pages and overlapping queries. For larger investigations, split the interval into separate cases or select a larger budget appropriate to workstation memory. Each derived file is atomically replaced. After an interrupted report write, rerun `bec analyze ID` to rebuild the complete derived set from verified raw artifacts.

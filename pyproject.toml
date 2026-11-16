@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bacon-egg-and-cheese"
+version = "0.6.0"
+description = "Evidence-backed Microsoft 365 and Google Workspace business email compromise investigations"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.12"
+dependencies = ["tzdata>=2024.1; platform_system=='Windows'"]
+
+[project.optional-dependencies]
+live = ["azure-identity>=1.17,<2", "google-auth[requests]>=2.35,<3"]
+
+[project.scripts]
+bec = "bec.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["bec", "bec.*"]
+
+[tool.setuptools.package-data]
+bec = ["data/*.json", "data/*.html", "data/demo/*.json"]

@@ -1,0 +1,78 @@
+# BEC email investigation agent
+
+Use this task prompt for work inside the standalone BEC repository. Fill in the requested objective and any narrower path ownership before starting.
+
+> Own the assigned BEC email investigation change. BEC is a complete standalone package, not a wrapper for another project. Preserve its Microsoft 365, Defender email, and Google Workspace workflows and their evidence guarantees. Deliver the change with relevant offline tests and a concise handoff.
+
+## Ownership
+
+Allowed implementation paths, subject to the current task's narrower assignments:
+
+```text
+bec/cli.py                  command parsing and case workflow
+bec/storage.py              tenant-bound cases, raw bytes, manifests, locks
+bec/collection.py           live collection, export import, replay
+bec/graph.py                Microsoft query planning and transport
+bec/hunting.py              Defender email table collection
+bec/workspace.py            Google Reports collection
+bec/normalize.py            Microsoft/Defender normalization
+bec/google_events.py        Google event normalization
+bec/analysis.py             scoped entities, baselines, correlations
+bec/messages.py             identifier-backed message correlation
+bec/reporting.py            offline reports and timeline exports
+bec/data/                   report/rule resources and synthetic fixtures
+bec/__init__.py
+bec/__main__.py
+tests/
+config/                     example identifiers only
+docs/
+README.md
+pyproject.toml
+AGENTS.md
+agents/bec-email.md
+.gitignore
+```
+
+Do not edit another repository, a copied release, credentials, or a real case store. Preserve `LICENSE` attribution. Changes to publication, repository settings, CI, or git history belong to the assigned integration owner unless explicitly included in the task.
+
+Start with the specific command, provider function, or failing test relevant to the objective. Read `docs/architecture.md` and the relevant provider guide when their contracts are involved. Use targeted searches; do not rescan the whole workspace or duplicate another agent's discovery. Delegate only if the user or task explicitly asks for agent work.
+
+## Component boundary
+
+BEC supports account compromise investigation through:
+
+- Entra interactive, noninteractive, and service principal sign-ins; directory audit; historical baselines; Exchange unified audit and message trace.
+- Defender `EmailEvents`, `EmailUrlInfo`, `EmailAttachmentInfo`, `UrlClickEvents`, `EmailPostDeliveryEvents`, and `AlertEvidence`, scoped to case accounts and message identifiers.
+- Workspace `login`, `token`, and `gmail` audit reports, including supporting identity/OAuth correlation.
+
+The command surface is `case create`, `demo`, `collect`, `investigate`, `analyze`, `report`, `pivot ip|user`, `timeline`, `verify`, and `evidence`. Global `--root` and `--verbose` precede the command. `collect` and `investigate` accept `--bundle`, `--dry-run`, `--defender`, and `--workspace-config`. The installed `bec` console script and `python -m bec` invoke the same package entry point.
+
+Prohibited scope includes device-agent provisioning, endpoint telemetry, ransomware exercises, disk/RAM capture, image custody, arbitrary hunting-query execution, and unrequested containment or account/mailbox remediation. Do not import or depend on a sibling IR package to implement BEC. Reject requests to disguise those capabilities as email commands; route them to their separate project owner.
+
+## Upstream inputs and downstream contract
+
+Inputs are an explicit tenant/customer binding, affected account, bounded incident interval, configured investigation limits, and either live provider access or a compatible tenant-bound export bundle. Credentials enter through the documented environment variables and remain outside source control and case metadata.
+
+Outputs are preserved raw vendor bytes with SHA-256 manifests, collection checkpoints, normalized events, baselines, entity links, findings, visible telemetry gaps, and HTML/CSV/JSON/Timesketch timelines. Keep the original source references available after deduplication and grouping. Do not establish message or app attribution using a filename, app name, subject, or temporal proximity alone. Observed sequence matches do not prove malicious control or code execution.
+
+Preserve stdout/stderr and statuses: `0` completed, `2` completed with telemetry gaps or parser usage error, `1` runtime error, `130` interruption. `case create` prints only its ID on success; `evidence` remains valid JSON. Dry runs do not acquire evidence or persist requested provider changes. Resume completed queries and retry incomplete ones without silently changing export/live mode.
+
+The distribution is `bacon-egg-and-cheese`, Python package `bec`, console `bec`. Keep project and package versions aligned and include the owned templates, rule data, and demo fixtures in distributions. A clean installation must not resolve code or data from another checkout. Combined Windows/image cases are not a supported migration input; retain the original case and transfer cloud records through a compatible bundle instead.
+
+## Validation
+
+1. Reproduce the issue or identify the exact contract being changed using offline fixtures and mocked provider exchanges.
+2. Install test prerequisites into the selected environment with `python -m pip install ".[live]"`. Provider transport tests import optional SDK exception types even though their exchanges are mocked and no credentials are required. Run the focused test file, for example `python -m unittest discover -s tests -p test_workspace.py -v`.
+3. For command, collection, analysis, reporting, or packaging changes, run `python -m unittest discover -s tests -v` from this repository root after installing those optional dependencies. Use the equivalent RTK test wrapper when available. Do not substitute an old baseline for the current run.
+4. For packaging or entrypoint changes, install the base package into a clean environment, run `bec --version` and `python -m bec --help`, then execute `bec --root TEMPORARY_PATH demo` from outside the checkout. The base install and demo must work without optional authentication libraries. Verify the generated case and replay/timeline outputs. Add the `live` extra before running the full suite in that environment. Coordinate this with the integration owner if they already own isolated installation checks.
+5. Confirm endpoint/image commands remain unavailable and no sibling package/runtime is required. Keep the test store outside the repository. Inspect the final diff and intended publication files for credentials, client data, binaries, or generated cases.
+
+Provider authentication, permissions, licensing, retention, and delayed ingestion need a separately authorized live check. Record that limitation instead of claiming fixture tests verify tenant behavior. Do not broaden successful testing without a new change or concrete unresolved risk.
+
+## Stop conditions
+
+Stop the dependent change and inform the integration owner when work requires unowned paths, changes a shared contract under active development, weakens tenant isolation or evidence provenance, needs live credentials, or would mutate a real case irreversibly. Continue independent work inside the assigned scope. Report unrelated defects without silently taking over another project. A provider extraction or schema migration requires explicit source ownership and compatibility decisions before edits.
+
+## Handoff
+
+Return the outcome, exact files changed, commands to install/run the result, tests run with actual counts and outcomes, and any unresolved compatibility or live-validation limits. Identify follow-up work owned by another agent. Do not claim other projects or publication are complete from this component handoff.
