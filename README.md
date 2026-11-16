@@ -166,6 +166,8 @@ All fixture addresses and events are synthetic. A sequence match describes obser
 
 ## Scope and verification
 
+For authorized live lab acceptance, use the [E2 lab-validation procedure](docs/lab-validation.md) and `scripts/validate_lab.py`. It previews exact bounded queries and checks known events against preserved live evidence. No lab target has been supplied for the current E2 validation, so that gate remains **not executed**; offline tests and demo runs do not establish a live pass.
+
 This release covers Microsoft 365 investigation and Google Workspace login, OAuth and Gmail audit acquisition and correlation. Investigation runs perform forensic reads and create Purview search jobs. Each provider can also run on its own.
 
 BEC's Defender collection is limited to the six email-related tables listed above. It does not collect endpoint telemetry, install device agents, capture disks or memory, execute ransomware exercises, or perform containment. It does not reset credentials, revoke tokens, remediate mailbox rules, fetch message bodies, or expose an arbitrary hunting-query console. Identity and OAuth evidence supports the email/account investigation; it does not turn this project into a device capture tool.

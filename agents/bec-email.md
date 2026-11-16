@@ -26,6 +26,7 @@ bec/__init__.py
 bec/__main__.py
 tests/
 scripts/installed_smoke.py  isolated installed-package acceptance checks
+scripts/validate_lab.py     explicit-target lab acceptance and private/sanitized records
 config/                     example identifiers only
 docs/
 README.md
@@ -72,6 +73,8 @@ Saved-case comparison must verify original raw evidence read-only, refuse tenant
 5. Confirm endpoint/image commands remain unavailable and no sibling package/runtime is required. Keep the test store outside the repository. Inspect the final diff and intended publication files for credentials, client data, binaries, or generated cases.
 
 Provider authentication, permissions, licensing, retention, and delayed ingestion need a separately authorized live check. Record that limitation instead of claiming fixture tests verify tenant behavior. Do not broaden successful testing without a new change or concrete unresolved risk.
+
+For E2 lab validation, follow `docs/lab-validation.md`. Require the user's explicit tenant/profile/account/window designation and independently known benign native event IDs before provider calls. Run preflight first; keep cases, commands, profiles, and detailed results private. Use only existing primary-user collectors with the bounded lab profile. Do not generate activity, change permissions, or choose arbitrary cached credentials. Exports/fixtures cannot qualify as live evidence. Missing pagination/restricted-access conditions stay untested, and public status must use the runner's allowlisted sanitized summary.
 
 ## Stop conditions
 
