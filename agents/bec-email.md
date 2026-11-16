@@ -21,6 +21,7 @@ bec/analysis.py             scoped entities, baselines, correlations
 bec/messages.py             identifier-backed message correlation
 bec/reporting.py            offline reports and timeline exports
 bec/comparison.py           read-only saved-case evidence comparison
+bec/search.py               exact typed read-only indicator lookup
 bec/data/                   report/rule resources and synthetic fixtures
 bec/__init__.py
 bec/__main__.py
@@ -48,7 +49,7 @@ BEC supports account compromise investigation through:
 - Defender `EmailEvents`, `EmailUrlInfo`, `EmailAttachmentInfo`, `UrlClickEvents`, `EmailPostDeliveryEvents`, and `AlertEvidence`, scoped to case accounts and message identifiers.
 - Workspace `login`, `token`, and `gmail` audit reports, including supporting identity/OAuth correlation.
 
-The command surface is `case create`, `demo`, `collect`, `investigate`, `analyze`, `report`, `pivot ip|user`, `timeline`, `verify`, `evidence`, and `compare`. Global `--root` and `--verbose` precede the command. `collect` and `investigate` accept `--bundle`, `--dry-run`, `--defender`, and `--workspace-config`. `compare` accepts two explicit saved-case directories and optional `--format json|html` / `--output FILE`; it does not use `--root`. The installed `bec` console script and `python -m bec` invoke the same package entry point.
+The command surface is `case create`, `demo`, `collect`, `investigate`, `analyze`, `report`, `pivot ip|user`, `timeline`, `verify`, `evidence`, `compare`, and `search`. Global `--root` and `--verbose` precede the command. `collect` and `investigate` accept `--bundle`, `--dry-run`, `--defender`, and `--workspace-config`. `compare` accepts two explicit saved-case directories; `search` accepts one directory, a supported indicator type, and its value. Both accept optional `--format json|html` / `--output FILE` and do not use `--root`. The installed `bec` console script and `python -m bec` invoke the same package entry point.
 
 Prohibited scope includes device-agent provisioning, endpoint telemetry, ransomware exercises, disk/RAM capture, image custody, arbitrary hunting-query execution, and unrequested containment or account/mailbox remediation. Do not import or depend on a sibling IR package to implement BEC. Reject requests to disguise those capabilities as email commands; route them to their separate project owner.
 
@@ -63,6 +64,8 @@ Preserve stdout/stderr and statuses: `0` completed, `2` completed with telemetry
 The distribution is `bacon-egg-and-cheese`, Python package `bec`, console `bec`. Keep project and package versions aligned and include the owned templates, rule data, and demo fixtures in distributions. A clean installation must not resolve code or data from another checkout. Combined Windows/image cases are not a supported migration input; retain the original case and transfer cloud records through a compatible bundle instead.
 
 Saved-case comparison must verify original raw evidence read-only, refuse tenant/native-customer mismatches, retain different content sharing a native identity, and make coverage/window differences explicit. Identical/reordered rows do not become additions. Absence never means deleted configuration. Do not use `Case.verify()` for this read-only path because it can recover pending transactions and change the source case. Comparison output must be a new file outside both cases. Successful comparison returns `0` even with evidence differences or documented source coverage gaps; invalid inputs return `1`.
+
+Saved-case search uses the same read-only integrity/native-binding boundary and only explicitly listed structured fields. Preserve exact typed equality, named domain relations, meaningful URL case/path/query/encoding, raw record variants, and every duplicate source pointer. Do not search arbitrary strings, resolve URLs, introduce substring/suffix matches, or mutate pivot state. No-hit output must retain coverage and interpretation limits. Search output must be new and outside its input case; successful zero-hit searches return `0`, while invalid evidence returns `1`.
 
 ## Validation
 

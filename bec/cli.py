@@ -32,6 +32,12 @@ def parser():
     comparison.add_argument("after", type=Path, help="later case directory containing case.json")
     comparison.add_argument("--format", choices=("json", "html"), default="json")
     comparison.add_argument("--output", type=Path, help="new report file outside both input cases; otherwise stdout")
+    search = cmd.add_parser("search", help="find exact typed indicators in a saved case without changing it")
+    search.add_argument("directory", type=Path, help="saved case directory containing case.json")
+    search.add_argument("type", choices=("email", "domain", "ip", "url", "sha256", "sha1"))
+    search.add_argument("value")
+    search.add_argument("--format", choices=("json", "html"), default="json")
+    search.add_argument("--output", type=Path, help="new report file outside the input case; otherwise stdout")
     for name in ("collect", "investigate", "analyze", "report", "timeline", "verify", "evidence"):
         sub = cmd.add_parser(name)
         if name == "timeline":
@@ -170,6 +176,14 @@ def main(argv=None):
     args = parser().parse_args(argv)
     root = args.root.resolve()
     try:
+        if args.command == "search":
+            from .search import search, render_html, write_report
+            result = search(args.directory, args.type, args.value)
+            if args.output:
+                print(write_report(result, args.output, args.format))
+            else:
+                print(render_html(result) if args.format == "html" else json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
         if args.command == "compare":
             from .comparison import compare, render_html, write_report
             result = compare(args.before, args.after)

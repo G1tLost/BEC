@@ -1,6 +1,6 @@
 # Bacon Egg and Cheese
 
-BEC v0.7.0 is a standalone business email compromise investigation tool for Microsoft 365 and Google Workspace. Give it a tenant, an account and a time window to build one chronology from Entra, Exchange, Defender email telemetry and Workspace audit records. Compare saved cases offline to see evidence-linked additions and changed record content, with collection coverage kept explicit. The `bacon-egg-and-cheese` distribution owns the `bec` package, command, report templates, and synthetic fixtures; it does not require another incident-response project.
+BEC v0.8.0 is a standalone business email compromise investigation tool for Microsoft 365 and Google Workspace. Give it a tenant, an account and a time window to build one chronology from Entra, Exchange, Defender email telemetry and Workspace audit records. Compare saved cases or search their verified evidence for exact typed indicators offline, with original source pointers and visible coverage limits. The `bacon-egg-and-cheese` distribution owns the `bec` package, command, report templates, and synthetic fixtures; it does not require another incident-response project.
 
 ## Install and run
 
@@ -129,12 +129,27 @@ The report separates newly observed records, records only observed in the earlie
 
 Tenant aliases, Microsoft directory IDs, and Workspace customer IDs must match, including missing bindings. For Microsoft exports without a native directory binding in either case, the report explicitly identifies reliance on the analyst-supplied tenant alias. Comparisons return `0` when the report is produced, even when evidence or coverage differs; invalid inputs return `1`. [Comparison semantics and limits](docs/comparison.md).
 
+## Search a saved case offline
+
+`search` performs a read-only lookup in an existing case. Unlike `pivot ip|user`, it does not collect evidence, save analyst seeds, or rebuild case reports.
+
+```powershell
+.\.venv\Scripts\bec.exe search C:\IR\cases\CLIENT-A\INC-2026-aaaaaaaaaaaa email analyst@example.com
+.\.venv\Scripts\bec.exe search C:\IR\cases\CLIENT-A\INC-2026-aaaaaaaaaaaa domain example.com --format html --output C:\IR\reports\domain-search.html
+.\.venv\Scripts\bec.exe search C:\IR\cases\CLIENT-A\INC-2026-aaaaaaaaaaaa url 'https://login.example.com/invoice?id=7' --output C:\IR\reports\url-search.json
+```
+
+Use an actual case directory. Types are `email`, `domain`, `ip`, `url`, `sha256`, and `sha1`. Matching uses listed normalized fields, not arbitrary text. Domains match exact domains/hosts rather than subdomains or substrings; each result names whether it matched an email domain, URL host, or explicit domain field. URL equality preserves the complete literal URL, including case, path, query, encoding, and fragment. There is no DNS lookup, URL request, decoding, or Safe Links expansion.
+
+Results preserve raw artifact hashes, record indexes, and Google child-event indexes. Duplicate records retain every source reference without inflating the unique record count. Coverage gaps and unsupported/invalid fields remain visible, including when there are no hits. **No match does not establish absence in the tenant.** JSON is the default; optional output files must be new and outside the case. [Search fields, semantics, and limits](docs/search.md).
+
 ## Commands
 
 | Command | Result |
 | --- | --- |
 | `bec demo` | Create and investigate the bundled synthetic email case |
 | `bec compare BEFORE_DIR AFTER_DIR [--format json\|html] [--output FILE]` | Verify and compare saved raw evidence without changing either source case |
+| `bec search CASE_DIR TYPE VALUE [--format json\|html] [--output FILE]` | Read-only exact typed indicator lookup in verified saved evidence |
 | `bec case create --tenant … --user … --start … --end … [--config FILE]` | Create a case and print its ID |
 | `bec collect ID [--bundle FILE] [--dry-run] [--defender] [--workspace-config FILE]` | Acquire primary-user evidence and historical sign-ins |
 | `bec investigate ID [--bundle FILE] [--dry-run] [--defender] [--workspace-config FILE]` | Collect, expand entity scope, correlate, render and summarize |
@@ -172,7 +187,7 @@ This release covers Microsoft 365 investigation and Google Workspace login, OAut
 
 BEC's Defender collection is limited to the six email-related tables listed above. It does not collect endpoint telemetry, install device agents, capture disks or memory, execute ransomware exercises, or perform containment. It does not reset credentials, revoke tokens, remediate mailbox rules, fetch message bodies, or expose an arbitrary hunting-query console. Identity and OAuth evidence supports the email/account investigation; it does not turn this project into a device capture tool.
 
-This standalone source continues the email-only v0.3.0 implementation, independently packaged in v0.6.0 and extended with saved-case comparison in v0.7.0. It does not include the endpoint/image features from the intervening combined releases. Use a separate case directory for this tool; opening combined Windows/image cases is not a supported migration path. Export original cloud records into a tenant-bound bundle when transferring an investigation, and retain the original case separately.
+This standalone source continues the email-only v0.3.0 implementation, independently packaged in v0.6.0 and extended with saved-case comparison in v0.7.0 and typed offline search in v0.8.0. It does not include the endpoint/image features from the intervening combined releases. Use a separate case directory for this tool; opening combined Windows/image cases is not a supported migration path. Export original cloud records into a tenant-bound bundle when transferring an investigation, and retain the original case separately.
 
 The automated suite exercises fixture reconstruction and simulated Microsoft API exchanges, including permissions errors, throttling, pagination, search resumption and integrity failures. Tenant-specific authentication, provisioning, retention and service behavior require a live validation in your environment.
 

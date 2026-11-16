@@ -20,6 +20,11 @@ def snapshot(directory):
             for path in directory.rglob('*') if path.is_file()}
 
 
+def vendor_rows(data):
+    value = json.loads(data)
+    return value.get('value', value.get('results', value.get('Results', value.get('items')))) if isinstance(value, dict) else value
+
+
 with tempfile.TemporaryDirectory(prefix='bec-installed-') as folder:
     root = Path(folder) / 'cases'
     run(folder, '--root', str(root), 'demo')
@@ -63,5 +68,27 @@ with tempfile.TemporaryDirectory(prefix='bec-installed-') as folder:
     report = Path(folder) / 'comparison.html'
     run(folder, 'compare', str(case), str(later), '--format', 'html', '--output', str(report))
     assert 'href="file:' in report.read_text(encoding='utf-8')
+
+    email = json.loads(run(folder, 'search', str(case), 'email', 'COMPROMISED@EXAMPLE.COM'))
+    assert email['summary']['matched_records'] > 0
+    evidence = email['matches'][0]['observations'][0]['evidence'][0]
+    raw = (case / evidence['file']).read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == evidence['sha256']
+    assert isinstance(vendor_rows(raw)[evidence['record_index']], dict)
+    url_entry = next(item for item in manifest['artifacts'] if item['dataset'] == 'EmailUrlInfo')
+    url_row = vendor_rows((later / url_entry['artifact']).read_bytes())[0]
+    url = url_row.get('Url', url_row.get('url'))
+    assert json.loads(run(folder, 'search', str(case), 'url', url))['summary']['matched_records'] > 0
+    missing = json.loads(run(folder, 'search', str(case), 'url', url + '__not_observed__'))
+    assert missing['summary']['matched_records'] == 0
+    assert missing['limitations'] and missing['field_coverage']
+    attachment_entry = next(item for item in manifest['artifacts'] if item['dataset'] == 'EmailAttachmentInfo')
+    attachment = vendor_rows((later / attachment_entry['artifact']).read_bytes())[0]
+    attachment_hash = attachment.get('SHA256', attachment.get('sha256'))
+    assert json.loads(run(folder, 'search', str(case), 'sha256', attachment_hash.upper()))['summary']['matched_records'] > 0
+    search_report = Path(folder) / 'indicator-search.html'
+    run(folder, 'search', str(case), 'email', 'compromised@example.com', '--format', 'html', '--output', str(search_report))
+    assert 'href="file:' in search_report.read_text(encoding='utf-8')
+    assert 'href="https:' not in search_report.read_text(encoding='utf-8')
     assert (snapshot(case), snapshot(later)) == before_bytes
-    print('Installed BEC: demo and verification passed; comparisons found zero then one source-linked addition, with both cases unchanged.')
+    print('Installed BEC: demo, verification, comparison and exact email/URL/hash searches passed; no-hit coverage remained visible and both cases were unchanged.')
