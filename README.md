@@ -1,6 +1,6 @@
 # Bacon Egg and Cheese
 
-BEC v0.8.0 is a standalone business email compromise investigation tool for Microsoft 365 and Google Workspace. Give it a tenant, an account and a time window to build one chronology from Entra, Exchange, Defender email telemetry and Workspace audit records. Compare saved cases or search their verified evidence for exact typed indicators offline, with original source pointers and visible coverage limits. The `bacon-egg-and-cheese` distribution owns the `bec` package, command, report templates, and synthetic fixtures; it does not require another incident-response project.
+BEC v0.9.0 is a standalone business email compromise investigation tool for Microsoft 365 and Google Workspace. Give it a tenant, an account and a time window to build one chronology from Entra, Exchange, Defender email telemetry and Workspace audit records. Compare saved cases, search exact typed indicators, or inspect a current mailbox snapshot beside historical rule evidence offline, with original source pointers and visible coverage limits. The `bacon-egg-and-cheese` distribution owns the `bec` package, command, report templates, and synthetic fixtures; it does not require another incident-response project.
 
 ## Install and run
 
@@ -237,8 +237,8 @@ On macOS or Linux, run `.venv/bin/python -m pip install '.[live]'`, then `.venv/
 
 MIT, preserving the [Bacon Egg and Cheese contributors' attribution](LICENSE).
 
-## Local review draft: mailbox-state companion
+## Offline mailbox-state companion
 
-Offline `snapshot-import` / `snapshot-view` preserve a tenant-bound current mailbox snapshot separately from historical UAL rule evidence. They do not call providers or modify the original case. See [contract, usage and limits](docs/mailbox-state.md). This local draft is not published or live-validated.
+Offline `snapshot-import` / `snapshot-view` preserve a tenant-bound current mailbox snapshot separately from historical UAL rule evidence. They do not call providers or modify the original case. The commands are included in this source checkout; live producer data has not been validated. See [contract, usage and limits](docs/mailbox-state.md) and [recorded validation](docs/mailbox-state-validation.md).
 
 [Prerequisites by purpose: offline use, optional live SDKs and tests](docs/prerequisites.md)

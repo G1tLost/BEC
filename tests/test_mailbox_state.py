@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from bec.storage import create, CaseError, digest
 from bec.mailbox_state import import_snapshot, view_snapshot
 
@@ -79,8 +80,73 @@ class MailboxStateTests(unittest.TestCase):
     def test_protected_output_and_symlink(self):
         self.write()
         with self.assertRaises(CaseError): import_snapshot(self.case.path, self.source, self.case.path / 'extra')
-        link = self.root / 'link.json'; link.symlink_to(self.source)
+        # Metadata-level refusal is deterministic, even without Windows link privileges.
+        from bec.mailbox_state import _bytes
+        with patch('bec.mailbox_state.Path.is_symlink', return_value=True), \
+                patch('bec.mailbox_state._read', side_effect=AssertionError('link target read')):
+            with self.assertRaises(CaseError): _bytes(self.root / 'link.json')
+        self.assertFalse(self.output.exists())
+
+    def test_real_symlink_refused_when_supported(self):
+        self.write()
+        link = self.root / 'link.json'
+        try:
+            link.symlink_to(self.source)
+        except OSError as error:
+            if getattr(error, 'winerror', None) != 1314:
+                raise
+            self.skipTest('Windows symlink privilege unavailable; metadata refusal is tested separately.')
         with self.assertRaises(CaseError): import_snapshot(self.case.path, link, self.output)
+        self.assertFalse(self.output.exists())
+
+    def test_documented_export_shapes_and_powershell_timestamp(self):
+        # Independently authored objects exercising the public v1 contract.
+        mailbox = dict(Identity='user@example.com', UserPrincipalName='user@example.com',
+                       ForwardingAddress=None, ForwardingSmtpAddress='smtp:archive@example.net',
+                       DeliverToMailboxAndForward=True, GrantSendOnBehalfTo=['assistant@example.com'],
+                       AdditionalVendorProperty={'preserve': ['all', 'metadata']})
+        self.obj['acquired_at'] = '2026-01-03T00:00:00.1234567Z'
+        self.obj['sources'] = {
+            'inbox_rules': dict(status='collected', records=[dict(Identity='rule-a',
+                Name='Invoice <script>example</script>', Enabled=True, IsHidden=True)]),
+            'forwarding': dict(status='collected', records=[mailbox]),
+            'delegates': dict(status='partial', records=[
+                dict(source='Exchange.FullAccess', record=dict(User='NT AUTHORITY\\SELF',
+                    AccessRights=['FullAccess'], IsInherited=True, Deny=True)),
+                dict(source='Exchange.SendAs', record=dict(Trustee='delegate@example.com', AccessRights=['SendAs'])),
+                dict(source='Exchange.Mailbox.SendOnBehalf', record=mailbox)])}
+        self.write()
+        import_snapshot(self.case.path, self.source, self.output)
+        result = view_snapshot(self.case.path, self.output)
+        self.assertEqual(result['acquired_at'], self.obj['acquired_at'])
+        self.assertTrue(result['synthetic'])
+        self.assertEqual(result['evidence_class'], 'reserialized-source-objects')
+        self.assertEqual((self.output / 'snapshot.json').read_bytes(), self.source.read_bytes())
+        preserved = json.loads((self.output / 'snapshot.json').read_text(encoding='utf-8-sig'))
+        for name, group in result['current_snapshot'].items():
+            self.assertEqual(group['status'], self.obj['sources'][name]['status'])
+            for row in group['records']:
+                pointed = preserved
+                for part in row['evidence']['json_pointer'].split('/')[1:]:
+                    pointed = pointed[int(part)] if isinstance(pointed, list) else pointed[part]
+                self.assertEqual(pointed, row['record'])
+                self.assertEqual(row['evidence']['sha256'], digest(self.source.read_bytes()))
+        self.assertEqual(len(result['current_snapshot']['delegates']['records']), 3)
+        self.assertEqual(result['historical_rule_activity'], [])
+
+    def test_denied_empty_and_missing_property_are_not_inferred(self):
+        self.obj['sources'] = {
+            'inbox_rules': dict(status='denied', records=[]),
+            'forwarding': dict(status='partial', records=[{'Identity': 'user@example.com'}]),
+            'delegates': dict(status='collected', records=[])}
+        self.write()
+        import_snapshot(self.case.path, self.source, self.output)
+        result = view_snapshot(self.case.path, self.output)
+        self.assertEqual(result['current_snapshot']['inbox_rules']['status'], 'denied')
+        self.assertEqual(result['current_snapshot']['forwarding']['status'], 'partial')
+        self.assertNotIn('ForwardingSmtpAddress', result['current_snapshot']['forwarding']['records'][0]['record'])
+        self.assertEqual(result['current_snapshot']['delegates'], dict(status='collected', records=[]))
+        self.assertEqual(result['historical_rule_activity'], [])
 
     def test_duplicate_keys_refused(self):
         self.write(); data = self.source.read_text(encoding='utf-8-sig')

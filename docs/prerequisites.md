@@ -30,7 +30,7 @@ python3 -m venv .venv
 
 ## Offline snapshots, exports, comparison and search
 
-The base package supports these operations without authentication SDKs or credentials. In this local draft, the snapshot companion accepts the contract documented in [mailbox-state](mailbox-state.md):
+The base package supports these operations without authentication SDKs or credentials. The snapshot companion accepts the contract documented in [mailbox-state](mailbox-state.md):
 
 ```sh
 .venv/bin/python -m bec snapshot-import /path/to/bound-case /path/to/export.json --output /path/to/new-companion
@@ -69,4 +69,4 @@ The full suite imports optional SDK exception types even though provider exchang
 .venv/bin/python -m unittest discover -s tests -p test_mailbox_state.py -v
 ```
 
-No credentials, real tenant or GAM/AD installation is required. Tests use temporary synthetic evidence. Validate installed-package behavior separately from checkout imports. Platform-specific installation and live behavior must be tested on their actual platform; this guide's local review does not claim Windows/Linux installation acceptance.
+No credentials, real tenant or GAM/AD installation is required. Tests use temporary synthetic evidence. Validate installed-package behavior separately from checkout imports. See the [general validation record](validation.md) and [mailbox companion validation](mailbox-state-validation.md) for completed platform checks and remaining gates. Offline installation and fixture results do not establish live provider behavior.

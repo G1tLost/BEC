@@ -91,4 +91,46 @@ with tempfile.TemporaryDirectory(prefix='bec-installed-') as folder:
     assert 'href="file:' in search_report.read_text(encoding='utf-8')
     assert 'href="https:' not in search_report.read_text(encoding='utf-8')
     assert (snapshot(case), snapshot(later)) == before_bytes
-    print('Installed BEC: demo, verification, comparison and exact email/URL/hash searches passed; no-hit coverage remained visible and both cases were unchanged.')
+
+    # Independently authored v1 fixture; no producer runtime or live credentials.
+    native_tenant = '33333333-3333-4333-8333-333333333333'
+    profile = Path(folder) / 'synthetic-profile.json'
+    profile.write_text(json.dumps(dict(tenant='SNAPSHOT', directory_id=native_tenant,
+                                      client_id=native_tenant)), encoding='utf-8')
+    case_id = run(folder, '--root', str(root), 'case', 'create', '--tenant', 'SNAPSHOT',
+                  '--user', 'mailbox@example.com', '--start', '2026-01-01T00:00:00Z',
+                  '--end', '2026-01-02T00:00:00Z', '--config', str(profile)).strip()
+    bound_case = root / 'SNAPSHOT' / case_id
+    bound_before = {str(path.relative_to(bound_case)): (path.read_bytes(), path.stat().st_mtime_ns)
+                    for path in bound_case.rglob('*') if path.is_file()}
+    current = dict(schema='response-menu.mailbox-snapshot.v1', tenant_id=native_tenant,
+                   mailbox_upn='mailbox@example.com', acquired_at='2026-01-03T00:00:00.1234567Z',
+                   synthetic=True, evidence_class='reserialized-source-objects', sources={
+                       'inbox_rules': dict(status='partial', records=[dict(Name='Synthetic current rule', Enabled=False)]),
+                       'forwarding': dict(status='denied', records=[]),
+                       'delegates': dict(status='collected', records=[dict(source='Exchange.Mailbox.SendOnBehalf',
+                           record=dict(UserPrincipalName='mailbox@example.com', GrantSendOnBehalfTo=['assistant@example.com']))])})
+    current_file = Path(folder) / 'synthetic-snapshot.json'
+    current_bytes = b'\xef\xbb\xbf' + json.dumps(current, indent=3).encode('utf-8')
+    current_file.write_bytes(current_bytes)
+    source_mtime = current_file.stat().st_mtime_ns
+    companion = Path(folder) / 'mailbox-companion'
+    receipt = json.loads(run(folder, 'snapshot-import', str(bound_case), str(current_file), '--output', str(companion)))
+    assert receipt['sha256'] == hashlib.sha256(current_bytes).hexdigest()
+    assert (companion / 'snapshot.json').read_bytes() == current_bytes
+    state = json.loads(run(folder, 'snapshot-view', str(bound_case), str(companion)))
+    assert state['synthetic'] is True and state['tenant_id'] == native_tenant
+    assert state['mailbox_upn'] == 'mailbox@example.com'
+    assert state['evidence_class'] == 'reserialized-source-objects'
+    assert state['acquired_at'] == current['acquired_at']
+    assert state['current_snapshot']['inbox_rules']['status'] == 'partial'
+    assert state['current_snapshot']['forwarding']['status'] == 'denied'
+    delegate = state['current_snapshot']['delegates']['records'][0]
+    assert delegate['record'] == current['sources']['delegates']['records'][0]
+    assert delegate['evidence']['json_pointer'] == '/sources/delegates/records/0'
+    assert delegate['evidence']['sha256'] == receipt['sha256']
+    assert not state['historical_rule_activity'] and state['historical_coverage'] is None
+    assert {str(path.relative_to(bound_case)): (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in bound_case.rglob('*') if path.is_file()} == bound_before
+    assert current_file.read_bytes() == current_bytes and current_file.stat().st_mtime_ns == source_mtime
+    print('Installed BEC: demo, verification, comparison, exact searches and mailbox snapshot import/view passed; source evidence and cases were unchanged.')
