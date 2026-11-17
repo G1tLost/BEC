@@ -38,6 +38,37 @@ Open the HTML path printed by `demo`. Under **Correlation findings**, find **Wor
 
 Select **October invoice** under **Message evidence**, or click the subject on a mailbox row. The sample links eight observations: a message trace, Defender's email, URL and attachment records, a blocked Safe Links click, an Exchange mailbox read, XDR alert evidence and a later post-delivery action. Expand **linked observations** to inspect each source. URLs appear as plain text. File names and hashes are searchable.
 
+## Access and permissions by workflow
+
+Offline demo, export investigation, saved-case search/comparison and mailbox-snapshot import/view need **no tenant login, application consent or cloud role**. They require local read access to their input evidence and write access only where the selected command creates cases or outputs. Installing `.[live]` adds authentication SDKs; it grants no permissions. Keep real cases and credentials outside this checkout.
+
+### Microsoft 365: application access, not an operator session
+
+BEC's implemented Microsoft client uses a tenant-bound application and Azure Identity `CertificateCredential` or `ClientSecretCredential`. It requests `https://graph.microsoft.com/.default`, meaning the application's already-consented Graph application permissions. Configure the exact directory/client IDs, then supply `BEC_CERTIFICATE_PATH` (optional `BEC_CERTIFICATE_PASSWORD`) or `BEC_CLIENT_SECRET`; certificates take precedence. BEC does not implement delegated/device-code login, managed identity or federated-credential authentication, and does not reuse Exchange Online PowerShell sessions. Microsoft public cloud only.
+
+| Implemented collector | Microsoft Graph **application** permission | Additional prerequisite or limit |
+| --- | --- | --- |
+| Entra sign-ins and directory audits | `AuditLog.Read.All` | Tenant licensing, retention and available fields constrain evidence; non-interactive/service-principal sign-ins use beta endpoints. |
+| Purview Exchange audit search | `AuditLogsQuery-Exchange.Read.All` | Audit availability/retention must cover the incident. BEC creates and polls search jobs, then reads results. This is Exchange audit coverage, not every Purview workload. |
+| Exchange message trace | `ExchangeMessageTrace.Read.All` | Provision Microsoft's message-trace service principal once; see onboarding below. |
+| Defender XDR email Advanced Hunting | `ThreatHunting.Read.All` | Relevant Defender services/licensing and populated email tables are required. No write permission is needed for BEC's read-only KQL. |
+
+An authorized administrator must grant the selected application permissions tenant consent before use. Human roles such as Reports Reader or Security Reader used with **delegated** APIs are not substitutes for BEC's application permissions, and BEC does not require the investigator to run as Global Administrator. Do not add broad write permissions merely to address a denied collector. [Sign-ins](https://learn.microsoft.com/en-us/graph/api/signin-list?view=graph-rest-1.0), [directory audits](https://learn.microsoft.com/en-us/graph/api/directoryaudit-list?view=graph-rest-1.0), [Purview queries](https://learn.microsoft.com/en-us/graph/api/security-auditcoreroot-post-auditlogqueries?view=graph-rest-1.0), [Graph hunting](https://learn.microsoft.com/en-us/graph/api/security-security-runhuntingquery?view=graph-rest-1.0).
+
+Exchange onboarding additionally provisions the Microsoft service principal with application ID `8bd644d1-64a1-4d4b-ae52-2e0cbf64e373`. Microsoft's example uses an administrator's `Application.ReadWrite.All` provisioning session; that is **not** a BEC runtime permission. Provisioning is a separate administrative change and can take hours to become effective. [Official onboarding](https://learn.microsoft.com/en-us/exchange/monitoring/trace-an-email-message/graph-api-message-trace).
+
+Conditional Access policy details can be omitted from sign-in responses without additional policy-read permission such as `Policy.Read.ConditionalAccess` or `Policy.Read.All`. These are **not part of BEC's baseline permission set**. An empty or partial response is not proof of clean configuration or complete coverage.
+
+### Google Workspace: native Reports API, not GAM
+
+Implemented sources are login, OAuth/token and Gmail **audit activities**, using only `https://www.googleapis.com/auth/admin.reports.audit.readonly`. Enable the Admin SDK API, authorize the service account's numeric OAuth client ID for domain-wide delegation, configure the actual Workspace customer ID and reporting administrator, and supply the service-account JSON path through `BEC_GOOGLE_SERVICE_ACCOUNT`. A Workspace super administrator grants domain-wide delegation; the impersonated runtime administrator needs access to the requested reports, not necessarily the Super Admin role. SDKs come from `.[live]`. [Reports authorization](https://developers.google.com/workspace/admin/reports/reference/rest/v1/activities/list), [delegation setup](https://developers.google.com/identity/protocols/oauth2/service-account#delegatingauthority).
+
+This does not grant message-body or Gmail settings access. Edition, reporting privileges, retention and delay still constrain audit records. Native Reports/compatible ALFA JSON or JSONL imports are implemented; arbitrary GAM-export compatibility, GAM execution and on-premises Active Directory adapters are **not implemented**. Do not install GAM or grant AD permissions as a prerequisite for current BEC.
+
+### Read-only boundaries and validation
+
+BEC reads investigation evidence and writes local case artifacts. Purview search-job creation is an intentional provider-side operation, not a tenant configuration or remediation change. BEC does not grant consent, provision the trace service principal, change mailbox rules or reset accounts. Missing permissions and unavailable telemetry remain visible gaps; offline tests do not establish live access. Use the existing [security guide](docs/security.md), [Workspace guide](docs/workspace.md) and [authorized lab procedure](docs/lab-validation.md) before live acceptance.
+
 ## Investigate a Microsoft tenant
 
 1. Configure the application permissions and Exchange message trace prerequisite in [Security and permissions](docs/security.md).
