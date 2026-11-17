@@ -38,6 +38,12 @@ def parser():
     search.add_argument("value")
     search.add_argument("--format", choices=("json", "html"), default="json")
     search.add_argument("--output", type=Path, help="new report file outside the input case; otherwise stdout")
+    for action in ("snapshot-import", "snapshot-view"):
+        sub = cmd.add_parser(action, help="offline mailbox state companion, separate from historical events")
+        sub.add_argument("directory", type=Path, help="existing tenant-bound case directory")
+        sub.add_argument("snapshot", type=Path, help="snapshot JSON for import; imported companion directory for view")
+        if action == "snapshot-import":
+            sub.add_argument("--output", type=Path, required=True, help="new companion directory outside the case")
     for name in ("collect", "investigate", "analyze", "report", "timeline", "verify", "evidence"):
         sub = cmd.add_parser(name)
         if name == "timeline":
@@ -176,6 +182,12 @@ def main(argv=None):
     args = parser().parse_args(argv)
     root = args.root.resolve()
     try:
+        if args.command in ("snapshot-import", "snapshot-view"):
+            from .mailbox_state import import_snapshot, view_snapshot
+            result = (import_snapshot(args.directory, args.snapshot, args.output)
+                      if args.command == "snapshot-import" else view_snapshot(args.directory, args.snapshot))
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+            return 0
         if args.command == "search":
             from .search import search, render_html, write_report
             result = search(args.directory, args.type, args.value)
