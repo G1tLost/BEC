@@ -205,3 +205,9 @@ On macOS or Linux, run `.venv/bin/python -m pip install '.[live]'`, then `.venv/
 ## License
 
 MIT, preserving the [Bacon Egg and Cheese contributors' attribution](LICENSE).
+
+## Local review draft: mailbox-state companion
+
+Offline `snapshot-import` / `snapshot-view` preserve a tenant-bound current mailbox snapshot separately from historical UAL rule evidence. They do not call providers or modify the original case. See [contract, usage and limits](docs/mailbox-state.md). This local draft is not published or live-validated.
+
+[Prerequisites by purpose: offline use, optional live SDKs and tests](docs/prerequisites.md)
